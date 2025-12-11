@@ -2,6 +2,8 @@ package com.radianbroker.dto;
 
 
 
+import com.radianbroker.entity.HL7Sent.AcknowledgmentCode;
+
 import java.util.Date;
 
 public class HL7SentDTO {
