@@ -121,9 +121,10 @@ public class HL7SentServiceImpl implements HL7SentService {
     @Override
     public Map<String, Object> getAllHL7Sent(HL7SentRequest hl7SentRequest) {
 
-        DateUtils.verifyDateFormat(hl7SentRequest.getStartDate());
-        DateUtils.verifyDateFormat(hl7SentRequest.getEndDate());
-
+        if (hl7SentRequest.getEndDate()!=null&&hl7SentRequest.getStartDate()!=null) {
+            DateUtils.verifyDateFormat(hl7SentRequest.getStartDate());
+            DateUtils.verifyDateFormat(hl7SentRequest.getEndDate());
+        }
         int page = hl7SentRequest.getPage();
         int size = hl7SentRequest.getSize() == 0 ? 5 : hl7SentRequest.getSize();
 

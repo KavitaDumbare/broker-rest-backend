@@ -23,8 +23,7 @@ public interface HL7QueueRepository extends CrudRepository<HL7Queue, Long>, JpaS
 			  + " visits v " + 
 			  "	WHERE "
 			  + " hq.report_id = v.report_id "
-			  + " AND DATE(hq.last_modified_date) >= ?1  "
-			  + " AND DATE(hq.last_modified_date) <= ?2  "
+			  + " AND IFNULL((DATE(hq.last_modified_date) >= ?1 AND DATE(hq.last_modified_date) <= ?2),1) "
 			  + " AND hq.ris_id = ?3 AND v.mip_id IN (?4)  "
 			  + " AND IFNULL((v.visit_no= ?5), 1) ORDER BY hq.id DESC", nativeQuery = true)
 	Page<HL7QueueProjection> getHl7QueueMessagesList(String startDate, String endDate, Long risId, List<Long> mipIds,

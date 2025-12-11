@@ -27,4 +27,7 @@ public interface VisitRepository extends CrudRepository<Visit, Long>, JpaSpecifi
 			"			      AND v.mip_id IN (?4) ", nativeQuery = true)
 	Page<Visit> getHl7QueuedList(String startDate, String endDate, Long risId, List<Long> mipIds,
 								 Pageable pagingSort);
+
+	@Query(value = "SELECT * FROM visits v WHERE v.visit_no = ?1", nativeQuery = true)
+	Visit findByVisitNo(String visitNo);
 }
