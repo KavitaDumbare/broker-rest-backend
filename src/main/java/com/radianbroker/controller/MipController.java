@@ -17,9 +17,9 @@ public class MipController {
 	MipService mipService;
 
 	@GetMapping("/admin/mips")
-	public ResponseEntity<?> getMips() {
+	public ResponseEntity<?> getMips(@RequestParam Long risId) {
 		try {
-			return new ResponseEntity<>(mipService.getMips(), HttpStatus.OK);
+			return new ResponseEntity<>(mipService.getMips(risId), HttpStatus.OK);
 		} catch (Exception e) {
 			e.printStackTrace();
 			return new ResponseEntity<>(new CustomExceptionHandler(e.getLocalizedMessage()), HttpStatus.BAD_REQUEST);

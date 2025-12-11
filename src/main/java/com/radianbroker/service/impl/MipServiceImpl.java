@@ -1,8 +1,13 @@
 package com.radianbroker.service.impl;
 
+import com.radianbroker.entity.Mip;
 import com.radianbroker.entity.Ris;
 import com.radianbroker.repository.MipRepository;
 import com.radianbroker.service.RisService;
+
+
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,8 +30,7 @@ public class MipServiceImpl implements MipService {
 	MipRepository mipRepository;
 
 	@Override
-	public Object getMips()throws Exception {
-		Ris ris = risService.getByRisCode(risCode);
-		return mipRepository.findAllByRisId(ris.getRisId());
+	public List<Mip> getMips(Long risId)throws Exception {
+		return mipRepository.findAllByRisId(risId);
 	}
 }

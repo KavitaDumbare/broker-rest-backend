@@ -1,7 +1,13 @@
 package com.radianbroker.service;
 
+import java.util.List;
+
+import com.radianbroker.entity.Mip;
+
+
+
 public interface MipService {
 
-    Object getMips()throws Exception;
+	List<Mip> getMips(Long risId)throws Exception;
 
 }
