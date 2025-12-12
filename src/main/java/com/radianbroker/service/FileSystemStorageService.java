@@ -24,4 +24,6 @@ public interface FileSystemStorageService {
 	public String readHL7MessagesFromFile(String filePath) throws Exception;
 
 	String encodeFileToBase64(File file) throws Exception;
+
+    boolean deleteFile(String filePath);
 }
