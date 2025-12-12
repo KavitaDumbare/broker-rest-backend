@@ -62,11 +62,14 @@ public class HL7QueueServiceImpl implements HL7QueueService {
 
 		for (HL7QueueProjection hl7QueueMsg : hl7QueueMsgs) {
 			HL7QueueDTO hl7QueueDTO = new HL7QueueDTO();
-			
-			
+
+
 			Visit visit=visitRepository.findByVisitNo(hl7QueueMsg.getVisitNo());
 			String date = hl7QueueMsg.getLastModifiedDate();
-			 Date messageSentDate = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").parse(date);
+			Date messageSentDate =new Date();
+			if (date!=null)
+			  messageSentDate = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").parse(date);
+
 			 hl7QueueDTO.setId(hl7QueueMsg.getId());
 			hl7QueueDTO.setMip(visit.getMip());			
 			hl7QueueDTO.setVisitNo(hl7QueueMsg.getVisitNo());
