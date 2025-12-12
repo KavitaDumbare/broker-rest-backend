@@ -127,4 +127,19 @@ public class FileSystemStorageServiceImpl implements FileSystemStorageService{
 			throw new IllegalStateException("could not read file " + file, e);
 		}
 	}
+
+	@Override
+	public boolean deleteFile(String filePath) {
+		try {
+			Path dirPath = this.rootLocation.resolve(Paths.get(filePath).normalize()).toAbsolutePath();
+			boolean result = Files.deleteIfExists(dirPath);
+			if (result) {
+				return true;
+			}
+			return false;
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return false;
+	}
 }

@@ -152,6 +152,9 @@ public class HL7SentServiceImpl implements HL7SentService {
 
     @Autowired
     AttachmentRepository attachmentRepository;
+
+    @Autowired
+    HL7RetryService  hl7RetryService;
     @Override
     public Message sendMessage(String host, int port, ORU_R01 oruR01) {
 
@@ -864,6 +867,181 @@ public class HL7SentServiceImpl implements HL7SentService {
         return fileSystemStorageService.loadAsResource(hl7Sent.getDirectoryPath());
     }
 
+    @Override
+    public HashMap<String, Object> sendVisitHoldQueueMessage(Long reportId) throws Exception {
+        // TODO Auto-generated method stub
+        Visit visit = visitRepository.findById(reportId)
+                .orElseThrow(() -> new ResourceNotFoundException("Visit not found for id: " + reportId));
+
+        return createORUMessageAndSend(visit);
+    }
 
 
-}
+
+    public HashMap<String, Object> createORUMessageAndSend(Visit visit) throws Exception {
+        // TODO Auto-generated method stub
+        try {
+//			AtomicReference<jakarta.jms.Message> jmsMessage = new AtomicReference<>();
+            Long patientId = visit.getPatientId();
+            Patient patient = patientRepository.findById(visit.getPatientId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Patient not found for id: " + patientId));
+
+            Ris ris = risService.getRisById(visit.getRisId());
+            RisHL7Config risHL7Config= risHL7ConfigRepository.findByRisId(ris.getRisId());
+            HL7Received hl7Received = hl7ReceivedService.findById(visit.getUpdatedByMsgId());
+            String hl7ReceivedMessageType = MessageType.ORM_O01.name();
+
+            if (hl7Received != null) {
+                if (hl7Received.getType().equals(hl7ReceivedMessageType)) {
+                    UUID uuid = UUID.randomUUID();
+                    String messageControlId = uuid.toString();
+                    String fileName = messageControlId + ".hl7";
+
+                    HL7Sent hl7Sent = hl7SentRepository.findByRisIdAndReportId(visit.getRisId(), visit.getReportId());
+
+                    if (hl7Sent == null) {
+                        hl7Sent = new HL7Sent();
+                    } else {
+                        // delete file by path
+                        if (hl7Sent.getDirectoryPath() != null && !hl7Sent.getDirectoryPath().isEmpty()) {
+                            fileSystemStorageService.deleteFile(hl7Sent.getDirectoryPath());
+                        }
+                    }
+                    hl7Sent.setReportId(visit.getReportId());
+                    hl7Sent.setRisId(visit.getRisId());
+                    hl7Sent.setMessageControlId(messageControlId);
+                    hl7Sent.setType(MessageType.ORU_R01.name());
+                    hl7Sent.setVersionId(versionId);
+                    hl7Sent = hl7SentRepository.save(hl7Sent);
+
+                    ObservingPractitioner mis1Practitioner = risUserService.getObservingPractitioner(ris.getRisId(),
+                            visit.getMis1());
+
+                    // ORU_R01 oruR01 = constructORUR01(messageControlId, hl7Received, ris, visit,
+                    // mis1Practitioner);
+                    ModelMapper modelMapper = new ModelMapper();
+                    VisitDTO visitDTO = modelMapper.map(visit, VisitDTO.class);
+
+                    diagramService.generateJpegForReportDiagrams(visit.getReportId());
+                    List<Diagram> diagrams = diagramService.getAllUnVerifiedReportDiagrams(visit.getReportId());
+
+                    ORU_R01 oruR01 = constructORUR01V2(messageControlId, hl7Received, ris, visitDTO, patient,
+                            mis1Practitioner, diagrams);
+
+                    // write file here
+
+                    String directoryPath = fileSystemStorageService.writeHL7MessageToFile(ris.getRisCode(),
+                            HL7_SENT_DIR, fileName, oruR01.encode());
+                    hl7Sent.setDirectoryPath(directoryPath);
+                    hl7Sent = hl7SentRepository.save(hl7Sent); // save required here
+
+                    // add entry in redis db
+//					Date currentDate = Calendar.getInstance().getTime();
+//					Date scheduledDate = org.apache.commons.lang3.time.DateUtils.addMilliseconds(currentDate,
+//							INCOMING_QUEUE_HOLD_TIME);
+//					UUID generationUUID = UUID.randomUUID();
+//					String generationId = generationUUID.toString();
+
+//					VisitReport visitReport = new VisitReport(generationId, messageControlId, visit.getRisId(),
+//							visit.getReportId(), oruR01.encode(), currentDate, scheduledDate, ris.getHl7SendHost(),
+//							ris.getHl7SendPort());
+//
+//					visitReportQueueRedisService.save(visitReport);
+
+//					jmsTemplate.convertAndSend(INCOMING_QUEUE, visitReport, messagePostProcessor -> {
+//
+//						jmsMessage.set(messagePostProcessor);
+//						return messagePostProcessor;
+//					});
+
+//					scheduler.schedule(new ReportHoldQueueTask(this, visitReport), scheduledDate);
+
+                    Message ackResponse = hl7RetryService.sendORUHL7(hl7Sent.getId(), risHL7Config.getHl7SendHost(),
+                            risHL7Config.getHl7SendPort(), oruR01);
+
+                    // Need to fetch again so that no of retry count is updated in hl7RetryService
+                    Optional<HL7Sent> updatedHL7Sent = hl7SentRepository.findById(hl7Sent.getId());
+                    hl7Sent = updatedHL7Sent.get();
+
+                    ACK ack = (ACK) ackResponse;
+                    String ackCode = getAckCode(ack);
+                    String errorComments = getErrorComments(ack);
+                    HL7Sent.AcknowledgmentCode acknowledgmentCode = HL7Sent.AcknowledgmentCode.valueOf(ackCode);
+                    if (errorComments != null) {
+                        sendMailFailedHL7Msg(errorComments, visitDTO.getOrderNo().toString());
+                    }
+                    // 2.Update hl7_out_messages for ack, ackcode....
+                    hl7Sent.setAckCode(acknowledgmentCode);
+                    hl7Sent.setErrorComments(errorComments);
+                    hl7Sent.setAckResponse(ackResponse.encode());
+                    hl7Sent = hl7SentRepository.save(hl7Sent);
+
+                    // 3.Update visit state to V
+                    visit.setState(State.V);
+                    visit.setLockedBy(null);
+                    visit = visitRepository.save(visit);
+                    List<Visit> nonPrimeVisits = visitRepository.findByOrderNoAndRisIdAndPrimeStudy(visit.getOrderNo(),
+                            visit.getRisId(), false);
+                    if (nonPrimeVisits.size() > 0) {
+                        for (Visit nonPrimeVisit : nonPrimeVisits) {
+                            nonPrimeVisit.setState(State.V);
+                            nonPrimeVisit.setLockedBy(null);
+                        }
+                        visitRepository.saveAll(nonPrimeVisits);
+                    }
+                    List<String> successAcknowledgmentCodes = HL7Sent.getSuccessAcknowledgmentCodes();
+                    boolean reportSentSuccess = false;
+                    if (hl7Sent.getAckCode() != null) {
+                        reportSentSuccess = successAcknowledgmentCodes.contains(hl7Sent.getAckCode().name());
+                    }
+                    HashMap<String, Object> response = new HashMap<String, Object>();
+                    response.put("success", true);
+                    response.put("messageControlId", messageControlId);
+                    response.put("reportId", hl7Sent.getReportId());
+                    response.put("reportSentSuccess", reportSentSuccess);
+                    response.put("messsageSentTime", hl7Sent.getLastModifiedDate());
+                    response.put("ackCode", hl7Sent.getAckCode().name());
+                    response.put("errorComments", hl7Sent.getErrorComments());
+                    response.put("ackResponse", hl7Sent.getAckCode());
+
+                    // 6.Remove visit from queue
+                    visitReportQueueRedisService.delete(visit.getRisId(), visit.getOrderNo());
+
+                    // 7.move verified visit to reports
+                    movedVisitToReport(visit.getRisId(), visit.getOrderNo());
+
+                    // 8. update date verified for diagrams
+                    diagramService.updateDateVerifiedReportDiagrams(visit.getReportId());
+
+                    // 8.Sent visit info to account
+                    sendReportPaymentToAccounts(visit);
+
+                    hl7SentRepository.save(hl7Sent);
+                    return response;
+                } else {
+                    throw new RuntimeException("Incorrect message type found:" + hl7Received.getType());
+                }
+            } else {
+                throw new RuntimeException("Bad Request: HL7 In Message not found for ID:" + visit.getUpdatedByMsgId());
+            }
+        } catch (Exception e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+            String stacktrace = ExceptionUtils.getStackTrace(e);
+            String subject = "Exception caught while construct or sending ORU message";
+
+            StringBuilder exceptionMessage = new StringBuilder();
+            exceptionMessage.append("Exception: ");
+            exceptionMessage.append(System.getProperty("line.separator"));
+            exceptionMessage.append(stacktrace);
+
+            Map<String, Object> model = new HashMap<String, Object>();
+            model.put("title", "Visit No: " + visit.getVisitNo());
+            model.put("message", exceptionMessage);
+
+            sendExceptionNotification(subject, model);
+            throw e;
+        }
+    }
+
+ }

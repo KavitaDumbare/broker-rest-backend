@@ -62,4 +62,15 @@ public class HL7SentController {
 			return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
 		}
 	}
+
+	@GetMapping("/send-visit-hold-queue-message")
+	public  ResponseEntity<?> sendVisitHoldQueueMessage(@RequestParam Long reportId) {
+		try {
+			return new ResponseEntity<>( hl7SentService.sendVisitHoldQueueMessage(reportId), HttpStatus.OK);
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+
 }
