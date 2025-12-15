@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import com.radianbroker.entity.Mip;
 import com.radianbroker.projections.MipsProjection;
-import com.radianforms.projections.MipProjection;
+
 
 import java.util.List;
 
