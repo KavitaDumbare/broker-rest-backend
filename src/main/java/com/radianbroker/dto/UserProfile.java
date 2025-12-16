@@ -58,6 +58,8 @@ public class UserProfile {
 
 	private List<Role> roles;
 
+	private String sessionRole;
+
 	public Long getUserId() {
 		return userId;
 	}
@@ -256,6 +258,14 @@ public class UserProfile {
 
 	public void setRoles(List<Role> roles) {
 		this.roles = roles;
+	}
+
+	public String getSessionRole() {
+		return sessionRole;
+	}
+
+	public void setSessionRole(String sessionRole) {
+		this.sessionRole = sessionRole;
 	}
 
 }

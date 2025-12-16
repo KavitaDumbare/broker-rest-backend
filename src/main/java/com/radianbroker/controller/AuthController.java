@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.radianbroker.dto.Token;
 import com.radianbroker.dto.UserBasicInfoDTO;
+import com.radianbroker.dto.UserProfile;
 import com.radianbroker.entity.Role;
 import com.radianbroker.enums.Roles;
 import com.radianbroker.payload.request.LaunchpadSessionRequest;
@@ -110,7 +111,7 @@ public class AuthController {
 			@RequestBody LaunchpadSessionRequest launchpadSessionRequest) {
 		try {
 			String userRemoteAddr = getRemoteAddr(request);
-			
+		
 			UserDetails userDetails = userDetailsService.authenticateLaunchpadUser(launchpadSessionRequest.getSession());
 			UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
 					userDetails, null, userDetails.getAuthorities());
@@ -118,12 +119,21 @@ public class AuthController {
 			SecurityContextHolder.getContext().setAuthentication(authentication);
 
 			UserDetailsImpl userDetailsImpl = (UserDetailsImpl) authentication.getPrincipal();
+			UserProfile userProfile=userService.getUserProfile();
 			Token accessToken = jwtUtils.generateAccessToken(userDetailsImpl.getEmail());
 			Token refreshToken = jwtUtils.generateRefreshToken(userDetailsImpl.getEmail());
 
 			HttpHeaders responseHeaders = new HttpHeaders();
 			addAccessTokenCookie(responseHeaders, accessToken);
 			addRefreshTokenCookie(responseHeaders, refreshToken);
+			List<Role> sessionRoles = userProfile.getRoles().stream()
+			        .filter(role -> Roles.getSessionRoles().contains(role.getName()))
+			        .collect(Collectors.toList());
+			if (sessionRoles.size() == 1) {
+				userProfile.setSessionRole(sessionRoles.get(0).getName());
+				addSessionRoleCookie(responseHeaders, sessionRoles.get(0).getName());
+			}
+			
 			userDetailsService.createRedisUser(userDetailsImpl.getEmail(), accessToken.getTokenValue(),
 					refreshToken.getTokenValue(), userRemoteAddr);
 			return ResponseEntity.ok().headers(responseHeaders)
@@ -134,6 +144,7 @@ public class AuthController {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getLocalizedMessage());
 		}
 	}
+	
 	
 	@PostMapping("/verify")
 	public ResponseEntity<?> verifyCode(HttpServletRequest request,
